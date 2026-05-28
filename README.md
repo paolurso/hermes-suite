@@ -13,7 +13,7 @@ Pre-built multi-arch images available on [Docker Hub](https://hub.docker.com/r/a
 
 > **🎉 Now with automatic runtime detection.** One image works on both Podman and Docker CE out of the box — no separate builds or flags needed. The container detects its runtime at startup and adjusts automatically. [Learn more](#changing-component-versions).
 
-🏗️ Official docker images are maintained by Ascensionoid ([ascensionoid.com](https://ascensionoid.com)).
+🏗️ Official container images are maintained by Ascensionoid ([ascensionoid.com](https://ascensionoid.com)).
 
 ## Why This Exists
 
