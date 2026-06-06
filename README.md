@@ -66,7 +66,7 @@ If you prefer not to build manually, use our pre-verified image tags from
 [Docker Hub](https://hub.docker.com/r/ascensionoid/hermes-suite):
 
 ```bash
-podman pull ascensionoid/hermes-suite:2026.5.29.2-0.51.157
+podman pull ascensionoid/hermes-suite:2026.6.5-0.51.293
 ```
 
 ### Manual Build with Specific Versions
@@ -75,9 +75,9 @@ If you need a specific combination, pass the versions as build arguments:
 
 ```bash
 podman build \
-  --build-arg AGENT_VERSION=v2026.5.29.2 \
-  --build-arg HERMES_WEBUI_VERSION=v0.51.230 \
-  -t hermes-suite:2026.5.29.2-0.51.230 .
+  --build-arg AGENT_VERSION=v2026.6.5 \
+  --build-arg HERMES_WEBUI_VERSION=v0.51.293 \
+  -t hermes-suite:2026.6.5-0.51.293 .
 ```
 
 Or use the build helper (reads from `versions.env`):
@@ -93,7 +93,7 @@ Or use the build helper (reads from `versions.env`):
 ./build.sh --docker-nolog
 
 # Override defaults:
-# ./build.sh --agent v2026.5.29.2 --webui v0.51.230
+# ./build.sh --agent v2026.6.5 --webui v0.51.293
 ```
 
 > **Docker compatibility:** Docker CE is auto-detected at container startup via /proc/1/cgroup.
@@ -107,15 +107,15 @@ Every release is an explicitly tested pair of Agent + WebUI on both amd64 and ar
 
 | Suite Tag | Agent Version | WebUI Version | Tested |
 |-----------|---------------|---------------|--------|
-| `2026.5.29.2-0.51.230` | v2026.5.29.2 | v0.51.230 | amd64 + arm64 |
+| `2026.6.5-0.51.293` | v2026.6.5 | v0.51.293 | amd64 + arm64 |
 
 > **Full version history:** https://github.com/sunnysktsang/hermes-suite/releases
 
 ### Version Tag Format
 
 Suite tags follow the pattern `{agent_date}-{webui_semver}`:
-- **Agent**: date-based version from `nousresearch/hermes-agent` (e.g. `v2026.5.29.2`)
-- **WebUI**: semantic version from `nesquena/hermes-webui` (e.g. `v0.51.230`)
+- **Agent**: date-based version from `nousresearch/hermes-agent` (e.g. `v2026.6.5`)
+- **WebUI**: semantic version from `nesquena/hermes-webui` (e.g. `v0.51.293`)
 
 The pinned pair for each release is declared in `versions.env`.
 
@@ -139,9 +139,9 @@ Or manually with pinned versions:
 
 ```bash
 podman build \
-  --build-arg AGENT_VERSION=v2026.5.29.2 \
-  --build-arg HERMES_WEBUI_VERSION=v0.51.230 \
-  -t ascensionoid/hermes-suite:2026.5.29.2-0.51.230 .
+  --build-arg AGENT_VERSION=v2026.6.5 \
+  --build-arg HERMES_WEBUI_VERSION=v0.51.293 \
+  -t ascensionoid/hermes-suite:2026.6.5-0.51.293 .
 ```
 
 ### 3. Create the network (if not already existing)
@@ -216,8 +216,8 @@ podman exec hermes-suite supervisorctl status
 Edit `versions.env` to change the pinned versions and runtime settings:
 
 ```env
-AGENT_VERSION=v2026.5.29.2
-WEBUI_VERSION=v0.51.230
+AGENT_VERSION=v2026.6.5
+WEBUI_VERSION=v0.51.293
 
 # Runtime selector: auto (default), podman, docker, docker-nolog
 CONTAINER_RUNTIME=auto
@@ -325,7 +325,7 @@ podman exec hermes-suite /opt/hermes-webui/venv/bin/python -c "import yaml; prin
 
 ### Services fail with "EACCES making dispatchers" (Docker only)
 
-This should not occur with the auto-detection feature (v2026.5.29.2+).
+This should not occur with the auto-detection feature (v2026.5.16-0.51.137+).
 The container detects Docker at startup and adjusts the privilege model automatically.
 Ensure you are using a recent image.
 
