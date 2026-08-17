@@ -61,10 +61,20 @@ RUN cd /opt/hermes && \
 # Stage 4: Install supervisord via uv (not available in Debian Trixie apt)
 # We install it into a dedicated venv at /opt/supervisor.
 # ---------------------------------------------------------------------------
-RUN uv venv /opt/supervisor && \
-    uv pip install --python /opt/supervisor/bin/python3 supervisor && \
-    ln -sf /opt/supervisor/bin/supervisord /usr/local/bin/supervisord && \
-    ln -sf /opt/supervisor/bin/supervisorctl /usr/local/bin/supervisorctl
+# The venv MUST be built on the same interpreter the agent venv uses: bare
+# `uv venv` can pick a uv-managed Python under root's home, which the hermes
+# user cannot execute ("bad interpreter: Permission denied" at boot, since
+# supervisord runs as hermes on the Podman path). Anchoring to the agent's
+# base interpreter guarantees an interpreter hermes can already run.
+RUN set -eux; \
+    BASE_PY="$(readlink -f /opt/hermes/.venv/bin/python3)"; \
+    echo "agent base interpreter: $BASE_PY"; ls -la "$BASE_PY"; \
+    uv venv --python "$BASE_PY" /opt/supervisor; \
+    uv pip install --python /opt/supervisor/bin/python3 supervisor; \
+    chmod -R a+rX /opt/supervisor; \
+    ln -sf /opt/supervisor/bin/supervisord /usr/local/bin/supervisord; \
+    ln -sf /opt/supervisor/bin/supervisorctl /usr/local/bin/supervisorctl; \
+    /opt/supervisor/bin/supervisord --version
 
 RUN mkdir -p /var/log/supervisor /var/run/supervisor && \
     chown -R hermes:hermes /var/log/supervisor /var/run/supervisor
@@ -84,7 +94,7 @@ ARG HERMES_WEBUI_VERSION=v0.52.113
 RUN cd /opt && \
     git clone --depth 1 --branch ${HERMES_WEBUI_VERSION} \
         https://github.com/nesquena/hermes-webui.git hermes-webui && \
-    uv venv /opt/hermes-webui/venv && \
+    uv venv --python "$(readlink -f /opt/hermes/.venv/bin/python3)" /opt/hermes-webui/venv && \
     uv pip install --python /opt/hermes-webui/venv/bin/python3 --no-cache-dir -r /opt/hermes-webui/requirements.txt && \
     uv pip install --python /opt/hermes-webui/venv/bin/python3 --no-cache-dir -e "/opt/hermes[all,messaging,anthropic,bedrock,azure-identity,hindsight]" && \
     rm -rf /opt/hermes-webui/.git
@@ -93,7 +103,7 @@ RUN cd /opt && \
 RUN echo "__version__ = '${HERMES_WEBUI_VERSION}'" > /opt/hermes-webui/api/_version.py
 
 # Ensure venv is owned by hermes so runtime lazy-dep auto-install works (#6).
-RUN chown -R hermes:hermes /opt/hermes-webui/venv
+RUN chown -R hermes:hermes /opt/hermes-webui/venv && chmod -R a+rX /opt/hermes-webui/venv
 
 # ---------------------------------------------------------------------------
 # Stage 6: Set up supervisord config and startup script
