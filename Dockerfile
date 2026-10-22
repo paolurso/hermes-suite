@@ -76,7 +76,9 @@ RUN set -eu; \
     trap 'suite_build_status=$?; if [ "$suite_build_status" -ne 0 ]; then printf "hermes-suite-build-failed phase=%s exit=%s\n" "$suite_build_phase" "$suite_build_status"; fi' EXIT; \
     suite_build_step() { suite_build_phase="$1"; printf 'hermes-suite-build phase=%s\n' "$suite_build_phase"; }; \
     suite_build_step supervisor-resolve-uv; \
-    UV_BIN="$(command -v uv || PYTHONPATH=/opt/hermes /opt/hermes/.venv/bin/python3 -c 'from pm import installed_package; package = installed_package("uv"); assert package is not None, "Pinned uv is not installed"; print(package.binary)')"; \
+    UV_BIN="$(if [ -f /opt/hermes/pm/lock.json ]; then \
+        PYTHONPATH=/opt/hermes /opt/hermes/.venv/bin/python3 -c 'from pm import uv_launcher; binary = uv_launcher("uv"); assert binary is not None, "Pinned uv launcher is not installed"; print(binary)'; \
+    else command -v uv; fi)"; \
     suite_build_step supervisor-validate-uv; \
     test -x "$UV_BIN"; \
     "$UV_BIN" --version; \
@@ -118,7 +120,9 @@ RUN set -eu; \
     trap 'suite_build_status=$?; if [ "$suite_build_status" -ne 0 ]; then printf "hermes-suite-build-failed phase=%s exit=%s\n" "$suite_build_phase" "$suite_build_status"; fi' EXIT; \
     suite_build_step() { suite_build_phase="$1"; printf 'hermes-suite-build phase=%s\n' "$suite_build_phase"; }; \
     suite_build_step webui-resolve-uv; \
-    UV_BIN="$(command -v uv || PYTHONPATH=/opt/hermes /opt/hermes/.venv/bin/python3 -c 'from pm import installed_package; package = installed_package("uv"); assert package is not None, "Pinned uv is not installed"; print(package.binary)')"; \
+    UV_BIN="$(if [ -f /opt/hermes/pm/lock.json ]; then \
+        PYTHONPATH=/opt/hermes /opt/hermes/.venv/bin/python3 -c 'from pm import uv_launcher; binary = uv_launcher("uv"); assert binary is not None, "Pinned uv launcher is not installed"; print(binary)'; \
+    else command -v uv; fi)"; \
     test -x "$UV_BIN"; \
     cd /opt; \
     suite_build_step webui-clone; \
