@@ -67,10 +67,12 @@ RUN cd /opt/hermes && \
 # supervisord runs as hermes on the Podman path). Anchoring to the agent's
 # base interpreter guarantees an interpreter hermes can already run.
 RUN set -eux; \
+    UV_BIN="$(command -v uv || PYTHONPATH=/opt/hermes /opt/hermes/.venv/bin/python3 -c 'from pm import installed_package; package = installed_package("uv"); assert package is not None, "Pinned uv is not installed"; print(package.binary)')"; \
+    test -x "$UV_BIN"; \
     BASE_PY="$(readlink -f /opt/hermes/.venv/bin/python3)"; \
     echo "agent base interpreter: $BASE_PY"; ls -la "$BASE_PY"; \
-    uv venv --python "$BASE_PY" /opt/supervisor; \
-    uv pip install --python /opt/supervisor/bin/python3 supervisor; \
+    "$UV_BIN" venv --python "$BASE_PY" /opt/supervisor; \
+    "$UV_BIN" pip install --python /opt/supervisor/bin/python3 supervisor; \
     chmod -R a+rX /opt/supervisor; \
     ln -sf /opt/supervisor/bin/supervisord /usr/local/bin/supervisord; \
     ln -sf /opt/supervisor/bin/supervisorctl /usr/local/bin/supervisorctl; \
@@ -92,12 +94,15 @@ RUN mkdir -p /var/log/supervisor /var/run/supervisor && \
 # PIN to a specific tag for reproducible builds — never use 'master'.
 # ---------------------------------------------------------------------------
 ARG HERMES_WEBUI_VERSION=v0.52.492
-RUN cd /opt && \
+# PM keeps its pinned installer outside PATH in newer Agent images.
+RUN UV_BIN="$(command -v uv || PYTHONPATH=/opt/hermes /opt/hermes/.venv/bin/python3 -c 'from pm import installed_package; package = installed_package("uv"); assert package is not None, "Pinned uv is not installed"; print(package.binary)')" && \
+    test -x "$UV_BIN" && \
+    cd /opt && \
     git clone --depth 1 --branch ${HERMES_WEBUI_VERSION} \
         https://github.com/nesquena/hermes-webui.git hermes-webui && \
-    uv venv --python "$(readlink -f /opt/hermes/.venv/bin/python3)" /opt/hermes-webui/venv && \
-    uv pip install --python /opt/hermes-webui/venv/bin/python3 --no-cache-dir -r /opt/hermes-webui/requirements.txt && \
-    uv pip install --python /opt/hermes-webui/venv/bin/python3 --no-cache-dir -e "/opt/hermes[all,messaging,anthropic,bedrock,azure-identity]" && \
+    "$UV_BIN" venv --python "$(readlink -f /opt/hermes/.venv/bin/python3)" /opt/hermes-webui/venv && \
+    "$UV_BIN" pip install --python /opt/hermes-webui/venv/bin/python3 --no-cache-dir -r /opt/hermes-webui/requirements.txt && \
+    "$UV_BIN" pip install --python /opt/hermes-webui/venv/bin/python3 --no-cache-dir -e "/opt/hermes[all,messaging,anthropic,bedrock,azure-identity]" && \
     rm -rf /opt/hermes-webui/.git
 
 # Bake version tag into the webui
