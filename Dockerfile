@@ -70,16 +70,29 @@ RUN cd /opt/hermes && \
 # user cannot execute ("bad interpreter: Permission denied" at boot, since
 # supervisord runs as hermes on the Podman path). Anchoring to the agent's
 # base interpreter guarantees an interpreter hermes can already run.
-RUN set -eux; \
+RUN set -eu; \
+    exec 2>&1; \
+    suite_build_phase=supervisor-init; \
+    trap 'suite_build_status=$?; if [ "$suite_build_status" -ne 0 ]; then printf "hermes-suite-build-failed phase=%s exit=%s\n" "$suite_build_phase" "$suite_build_status"; fi' EXIT; \
+    suite_build_step() { suite_build_phase="$1"; printf 'hermes-suite-build phase=%s\n' "$suite_build_phase"; }; \
+    suite_build_step supervisor-resolve-uv; \
     UV_BIN="$(command -v uv || PYTHONPATH=/opt/hermes /opt/hermes/.venv/bin/python3 -c 'from pm import installed_package; package = installed_package("uv"); assert package is not None, "Pinned uv is not installed"; print(package.binary)')"; \
+    suite_build_step supervisor-validate-uv; \
     test -x "$UV_BIN"; \
+    "$UV_BIN" --version; \
+    suite_build_step supervisor-resolve-python; \
     BASE_PY="$(readlink -f /opt/hermes/.venv/bin/python3)"; \
     echo "agent base interpreter: $BASE_PY"; ls -la "$BASE_PY"; \
+    suite_build_step supervisor-create-venv; \
     "$UV_BIN" venv --python "$BASE_PY" /opt/supervisor; \
+    suite_build_step supervisor-install; \
     "$UV_BIN" pip install --python /opt/supervisor/bin/python3 supervisor; \
+    suite_build_step supervisor-permissions; \
     chmod -R a+rX /opt/supervisor; \
+    suite_build_step supervisor-links; \
     ln -sf /opt/supervisor/bin/supervisord /usr/local/bin/supervisord; \
     ln -sf /opt/supervisor/bin/supervisorctl /usr/local/bin/supervisorctl; \
+    suite_build_step supervisor-verify; \
     /opt/supervisor/bin/supervisord --version
 
 RUN mkdir -p /var/log/supervisor /var/run/supervisor && \
@@ -99,14 +112,25 @@ RUN mkdir -p /var/log/supervisor /var/run/supervisor && \
 # ---------------------------------------------------------------------------
 ARG HERMES_WEBUI_VERSION=v0.52.492
 # PM keeps its pinned installer outside PATH in newer Agent images.
-RUN UV_BIN="$(command -v uv || PYTHONPATH=/opt/hermes /opt/hermes/.venv/bin/python3 -c 'from pm import installed_package; package = installed_package("uv"); assert package is not None, "Pinned uv is not installed"; print(package.binary)')" && \
-    test -x "$UV_BIN" && \
-    cd /opt && \
+RUN set -eu; \
+    exec 2>&1; \
+    suite_build_phase=webui-init; \
+    trap 'suite_build_status=$?; if [ "$suite_build_status" -ne 0 ]; then printf "hermes-suite-build-failed phase=%s exit=%s\n" "$suite_build_phase" "$suite_build_status"; fi' EXIT; \
+    suite_build_step() { suite_build_phase="$1"; printf 'hermes-suite-build phase=%s\n' "$suite_build_phase"; }; \
+    suite_build_step webui-resolve-uv; \
+    UV_BIN="$(command -v uv || PYTHONPATH=/opt/hermes /opt/hermes/.venv/bin/python3 -c 'from pm import installed_package; package = installed_package("uv"); assert package is not None, "Pinned uv is not installed"; print(package.binary)')"; \
+    test -x "$UV_BIN"; \
+    cd /opt; \
+    suite_build_step webui-clone; \
     git clone --depth 1 --branch ${HERMES_WEBUI_VERSION} \
-        https://github.com/nesquena/hermes-webui.git hermes-webui && \
-    "$UV_BIN" venv --python "$(readlink -f /opt/hermes/.venv/bin/python3)" /opt/hermes-webui/venv && \
-    "$UV_BIN" pip install --python /opt/hermes-webui/venv/bin/python3 --no-cache-dir -r /opt/hermes-webui/requirements.txt && \
-    "$UV_BIN" pip install --python /opt/hermes-webui/venv/bin/python3 --no-cache-dir -e "/opt/hermes[all,messaging,anthropic,bedrock,azure-identity]" && \
+        https://github.com/nesquena/hermes-webui.git hermes-webui; \
+    suite_build_step webui-create-venv; \
+    "$UV_BIN" venv --python "$(readlink -f /opt/hermes/.venv/bin/python3)" /opt/hermes-webui/venv; \
+    suite_build_step webui-install-requirements; \
+    "$UV_BIN" pip install --python /opt/hermes-webui/venv/bin/python3 --no-cache-dir -r /opt/hermes-webui/requirements.txt; \
+    suite_build_step webui-install-agent; \
+    "$UV_BIN" pip install --python /opt/hermes-webui/venv/bin/python3 --no-cache-dir -e "/opt/hermes[all,messaging,anthropic,bedrock,azure-identity]"; \
+    suite_build_step webui-cleanup; \
     rm -rf /opt/hermes-webui/.git
 
 # Bake version tag into the webui
