@@ -140,6 +140,15 @@ RUN set -eu; \
 # Bake version tag into the webui
 RUN echo "__version__ = '${HERMES_WEBUI_VERSION}'" > /opt/hermes-webui/api/_version.py
 
+# WebUI's legacy detector reads VERSION, while newer Agent images use a stamp.
+RUN /opt/hermes/.venv/bin/python3 -c 'import json, re; from pathlib import Path; \
+    stamp = Path("/opt/hermes/install-stamp.json"); \
+    data = json.loads(stamp.read_text()) if stamp.exists() else {}; \
+    assert isinstance(data, dict), "Invalid Agent install stamp"; \
+    version = data.get("displayVersion", data.get("baseVersion")); commit = data.get("commit"); \
+    assert not stamp.exists() or (isinstance(version, str) and re.fullmatch(r"v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?", version) and isinstance(commit, str) and re.fullmatch(r"[0-9a-f]{40}", commit) and commit != "0" * 40), "Invalid Agent version provenance"; \
+    Path("/opt/hermes/VERSION").write_text(version + "\n") if stamp.exists() else None'
+
 # Ensure venv is owned by hermes so runtime lazy-dep auto-install works (#6).
 RUN chown -R hermes:hermes /opt/hermes-webui/venv && chmod -R a+rX /opt/hermes-webui/venv
 
