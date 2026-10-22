@@ -10,7 +10,7 @@
 #   hermes-dashboard — Built-in monitoring dashboard on port 9119
 #   hermes-webui     — Browser chat interface on port 8787
 #
-# Build:  podman build -t hermes-suite:2026.8.16-0.52.113 .
+# Build:  podman build -t hermes-suite:0.22.4-0.52.492 .
 # Run:    podman-compose up -d
 # =============================================================================
 
@@ -19,7 +19,7 @@
 # This already contains: Python 3.13, Node.js, npm, Playwright, agent code,
 # the built-in web dashboard (hermes dashboard), the gateway, uv, and s6-overlay.
 # ---------------------------------------------------------------------------
-ARG AGENT_VERSION=v2026.8.16
+ARG AGENT_VERSION=v0.22.4
 ARG ENABLE_WHATSAPP_BRIDGE=false
 FROM docker.io/nousresearch/hermes-agent:${AGENT_VERSION}
 
@@ -85,18 +85,19 @@ RUN mkdir -p /var/log/supervisor /var/run/supervisor && \
 # and set up its own venv using uv (avoids python3-venv package requirement).
 # The webui needs the agent's Python deps to import agent modules.
 # We install with the same extras the base image bakes into /opt/hermes/.venv
-# (all, messaging, anthropic, bedrock, azure-identity, hindsight) so the
+# (all, messaging, anthropic, bedrock, azure-identity) so the
 # webui's in-process agent has working memory and provider backends (#16).
+# Memory providers such as Hindsight are managed by Agent plugins since v0.22.
 #
 # PIN to a specific tag for reproducible builds — never use 'master'.
 # ---------------------------------------------------------------------------
-ARG HERMES_WEBUI_VERSION=v0.52.113
+ARG HERMES_WEBUI_VERSION=v0.52.492
 RUN cd /opt && \
     git clone --depth 1 --branch ${HERMES_WEBUI_VERSION} \
         https://github.com/nesquena/hermes-webui.git hermes-webui && \
     uv venv --python "$(readlink -f /opt/hermes/.venv/bin/python3)" /opt/hermes-webui/venv && \
     uv pip install --python /opt/hermes-webui/venv/bin/python3 --no-cache-dir -r /opt/hermes-webui/requirements.txt && \
-    uv pip install --python /opt/hermes-webui/venv/bin/python3 --no-cache-dir -e "/opt/hermes[all,messaging,anthropic,bedrock,azure-identity,hindsight]" && \
+    uv pip install --python /opt/hermes-webui/venv/bin/python3 --no-cache-dir -e "/opt/hermes[all,messaging,anthropic,bedrock,azure-identity]" && \
     rm -rf /opt/hermes-webui/.git
 
 # Bake version tag into the webui
@@ -116,9 +117,9 @@ RUN chmod +x /opt/hermes-suite/start.sh
 # Stage 7: Environment, labels, and runtime config
 # ---------------------------------------------------------------------------
 # Re-declare ARGs after FROM so they are available in LABEL
-ARG AGENT_VERSION=v2026.8.16
+ARG AGENT_VERSION=v0.22.4
 ARG ENABLE_WHATSAPP_BRIDGE=false
-ARG HERMES_WEBUI_VERSION=v0.52.113
+ARG HERMES_WEBUI_VERSION=v0.52.492
 
 LABEL org.opencontainers.image.title="Hermes Suite" \
       org.opencontainers.image.description="All-in-one: hermes-agent + hermes-webui + hermes-dashboard" \
@@ -130,7 +131,7 @@ LABEL org.opencontainers.image.title="Hermes Suite" \
 ENV PATH="/opt/hermes/.venv/bin:/opt/hermes-webui/venv/bin:$PATH"
 ENV HERMES_HOME=/opt/data
 ENV HERMES_DATA_DIR=/opt/data
-ENV PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/.playwright
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/tools
 
 # hermes-agent web dist (built into the base image)
 ENV HERMES_WEB_DIST=/opt/hermes/hermes_cli/web_dist
