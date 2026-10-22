@@ -45,15 +45,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN echo "hermes ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # ---------------------------------------------------------------------------
-# Stage 3: Install Browser tool dependencies for agent
-# npm install + Playwright chromium (needed by browser toolset)
+# Stage 3: Install Node dependencies and preserve PM-managed Chromium
+# Older base images still need the legacy Playwright browser installation.
 # WhatsApp bridge is removed by default (ENABLE_WHATSAPP_BRIDGE=false).
 # Set --build-arg ENABLE_WHATSAPP_BRIDGE=true or use --whatsapp flag in
 # build.sh to include it.
 # ---------------------------------------------------------------------------
 RUN cd /opt/hermes && \
     npm install --prefer-offline --no-audit && \
-    npx playwright install --with-deps chromium && \
+    if [ -f /opt/hermes/pm/lock.json ]; then \
+        PYTHONPATH=/opt/hermes /opt/hermes/.venv/bin/python3 -c 'import os; from pm import installed_package; package = installed_package("chromium"); assert package is not None and os.access(package.binary, os.X_OK), "Pinned Chromium is not executable"'; \
+    else \
+        npx playwright install --with-deps chromium; \
+    fi && \
     if [ "$ENABLE_WHATSAPP_BRIDGE" != "true" ]; then rm -rf /opt/hermes/scripts/whatsapp-bridge; fi && \
     rm -rf /var/lib/apt/lists/*
 
