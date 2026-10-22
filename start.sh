@@ -28,6 +28,28 @@ is_docker() {
 
 # --- Helper: directory and config setup (shared by both paths) ---
 setup_hermes() {
+    # New Agent images prepare persistent dependency generations and migrate
+    # configuration here. Run only the setup hook, not the s6 service launcher.
+    if [ -f "${INSTALL_DIR}/docker/stage2-hook.sh" ]; then
+        if [ "$(id -u)" = "0" ]; then
+            PATH="/command:$PATH" sh "${INSTALL_DIR}/docker/stage2-hook.sh"
+        fi
+
+        # Supervisor inherits this export; it does not read s6's env directory.
+        if [ -z "${AGENT_BROWSER_EXECUTABLE_PATH:-}" ] && \
+            [ -r /etc/hermes/agent-browser-executable-path ]; then
+            local browser_bin
+            IFS= read -r browser_bin < /etc/hermes/agent-browser-executable-path || true
+            if [ -n "$browser_bin" ] && [ -x "$browser_bin" ]; then
+                export AGENT_BROWSER_EXECUTABLE_PATH="$browser_bin"
+            fi
+        fi
+
+        mkdir -p /var/log/supervisor /var/run/supervisor
+        return
+    fi
+
+    # Preserve the setup path for older images selected through build arguments.
     source "${INSTALL_DIR}/.venv/bin/activate"
 
     # Create essential directory structure (mirrors official entrypoint)
@@ -100,7 +122,8 @@ if [ "$(id -u)" = "0" ]; then
     fi
 
     actual_hermes_uid=$(id -u hermes)
-    if [ "$(stat -c %u "$HERMES_HOME" 2>/dev/null)" != "$actual_hermes_uid" ]; then
+    if [ ! -f "${INSTALL_DIR}/docker/stage2-hook.sh" ] && \
+        [ "$(stat -c %u "$HERMES_HOME" 2>/dev/null)" != "$actual_hermes_uid" ]; then
         echo "$HERMES_HOME is not owned by $actual_hermes_uid, fixing"
         chown -R hermes:hermes "$HERMES_HOME" 2>/dev/null || \
             echo "Warning: chown failed (rootless container?) — continuing anyway"
@@ -113,9 +136,11 @@ if [ "$(id -u)" = "0" ]; then
         echo "Detected Docker runtime — supervisord as root, services as hermes"
         setup_hermes
 
-        # Ensure all created files/dirs are owned by hermes
-        chown -R hermes:hermes "$HERMES_HOME" 2>/dev/null || \
-            echo "Warning: chown failed — continuing anyway"
+        # New Agent setup owns its targeted permission handling.
+        if [ ! -f "${INSTALL_DIR}/docker/stage2-hook.sh" ]; then
+            chown -R hermes:hermes "$HERMES_HOME" 2>/dev/null || \
+                echo "Warning: chown failed — continuing anyway"
+        fi
 
         print_banner
         exec "$@"
@@ -124,6 +149,9 @@ if [ "$(id -u)" = "0" ]; then
     # Podman (or unknown runtime): drop to hermes via s6-setuidgid, re-exec this script
     # s6-setuidgid is provided by the s6-overlay in the base agent image (v2026.5.29+)
     echo "Detected Podman runtime"
+    if [ -f "${INSTALL_DIR}/docker/stage2-hook.sh" ]; then
+        setup_hermes
+    fi
     echo "Dropping root privileges"
     exec /command/s6-setuidgid hermes "$0" "$@"
 fi
